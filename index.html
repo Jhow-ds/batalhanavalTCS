@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batalha Naval RGB</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+        overflow: hidden; /* Evita barras de rolagem por causa do canvas */
+    }
+    .mensagem {
+      font-size: 1.5rem;
+      font-weight: bold;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.5s ease-in-out;
+    }
+    .mensagem.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .mensagem-principal {
+      font-size: 4rem;
+      font-weight: bold;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.6s ease-in-out;
+    }
+    .mensagem-principal.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Ondas */
+    .editorial {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 150px;
+      z-index: 0;
+    }
+    .parallax > use{
+      animation: move-forever linear infinite;
+    }
+    .parallax > use:nth-child(1){animation-delay:-2s; animation-duration:12s;}
+    .parallax > use:nth-child(2){animation-delay:-3s; animation-duration:7s;}
+    .parallax > use:nth-child(3){animation-delay:-4s; animation-duration:5s;}
+    @keyframes move-forever{
+      0%{transform: translateX(-90px);}
+      100%{transform: translateX(85px);}
+    }
+
+    /* Navios flutuando */
+    .ship {
+      position: absolute;
+      bottom: 60px; /* altura sobre a água */
+      width: 100px;
+      height: auto;
+      z-index: 1;
+      animation: sail ease-in-out infinite;
+      transition: opacity 0.5s ease-out; /* Para sumir suavemente */
+    }
+    .ship.ship1 { left: -120px; animation-duration: 20s; }
+    .ship.ship2 { left: -100px; animation-duration: 30s; animation-delay: 5s; }
+    .ship.hidden {
+        opacity: 0;
+        pointer-events: none; /* Impede interação com o navio escondido */
+    }
+
+    .ship img {
+      width: 80px;
+      height: auto;
+      animation: float 3s ease-in-out infinite alternate;
+    }
+    @keyframes sail {
+      0% { transform: translateX(-150px); } /* Começa mais para fora */
+      100% { transform: translateX(100vw); }
+    }
+
+    @keyframes float {
+      0% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-15px) rotate(2deg); }
+      100% { transform: translateY(0) rotate(-2deg); }
+    }
+    
+    /* Estilo para o Canvas de explosões */
+    #explosion-canvas {
+        position: fixed; /* Ocupa a tela toda */
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 20; /* Fica sobre os outros elementos */
+        pointer-events: none; /* Permite clicar através dele */
+    }
+
+    /* Animação de tremer a tela */
+    @keyframes screenShake {
+      0% { transform: translate(1px, 1px) rotate(0deg); }
+      10% { transform: translate(-1px, -2px) rotate(-1deg); }
+      20% { transform: translate(-3px, 0px) rotate(1deg); }
+      30% { transform: translate(3px, 2px) rotate(0deg); }
+      40% { transform: translate(1px, -1px) rotate(1deg); }
+      50% { transform: translate(-1px, 2px) rotate(-1deg); }
+      60% { transform: translate(-3px, 1px) rotate(0deg); }
+      70% { transform: translate(3px, 1px) rotate(-1deg); }
+      80% { transform: translate(-1px, -1px) rotate(1deg); }
+      90% { transform: translate(1px, 2px) rotate(0deg); }
+      100% { transform: translate(1px, -2px) rotate(-1deg); }
+    }
+
+    .shake {
+      animation: screenShake 0.5s;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-start min-h-screen p-6 transition-colors duration-500">
+
+  <!-- Canvas para as explosões -->
+  <canvas id="explosion-canvas"></canvas>
+
+  <h1 class="text-3xl font-bold mb-6 z-10 relative">Batalha Naval RGB</h1>
+
+  <button id="connectBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md mb-6 transition z-10 relative">
+    Conectar Arduino
+  </button>
+
+  <!-- Histórico de apenas 1 mensagem -->
+  <div id="historicoContainer" class="flex flex-col items-center justify-center w-full max-w-3xl mb-6 z-10 relative"></div>
+
+  <!-- Mensagem principal grande -->
+  <div id="mensagemPrincipal" class="mensagem-principal z-10 relative"></div>
+
+  <!-- Navios -->
+  <div class="ship ship1">
+    <img src="https://img.icons8.com/external-others-maxicons/62/external-battle-battlefield-others-maxicons.png" alt="Navio de Batalha 1">
+  </div>
+  <div class="ship ship2">
+    <img src="https://img.icons8.com/external-others-maxicons/62/external-battleship-battlefield-others-maxicons.png" alt="Navio de Batalha 2">
+  </div>
+
+  <!-- Ondas -->
+  <svg class="editorial"
+       xmlns="http://www.w3.org/2000/svg"
+       xmlns:xlink="http://www.w3.org/1999/xlink"
+       viewBox="0 24 150 28"
+       preserveAspectRatio="none">
+    <defs>
+    <path id="gentle-wave"
+    d="M-160 44c30 0 
+      58-18 88-18s
+      58 18 88 18 
+      58-18 88-18 
+      58 18 88 18
+      v44h-352z" />
+    </defs>
+    <g class="parallax">
+      <use xlink:href="#gentle-wave" x="50" y="0" fill="#4579e2"/>
+      <use xlink:href="#gentle-wave" x="50" y="3" fill="#3461c1"/>
+      <use xlink:href="#gentle-wave" x="50" y="6" fill="#2d55aa"/>  
+    </g>
+  </svg>
+
+  <script>
+    // --- LÓGICA ORIGINAL DO JOGO ---
+    const connectBtn = document.getElementById('connectBtn');
+    const historicoContainer = document.getElementById('historicoContainer');
+    const mensagemPrincipal = document.getElementById('mensagemPrincipal');
+
+    let bufferSerial = '';
+    let historico = '';
+    let filaMensagens = [];
+    let exibindoMensagem = false;
+    const tempoExibicao = 3000;
+
+    function mostrarMensagemFila(msg) {
+      filaMensagens.push(msg.trim());
+      if (!exibindoMensagem) exibirProximaMensagem();
+    }
+
+    function exibirProximaMensagem() {
+      if (filaMensagens.length === 0) {
+        exibindoMensagem = false;
+        return;
+      }
+      exibindoMensagem = true;
+      const msg = filaMensagens.shift();
+
+      mensagemPrincipal.textContent = msg;
+      mensagemPrincipal.classList.add('show');
+
+      historico = msg;
+      historicoContainer.innerHTML = '';
+      const div = document.createElement("div");
+      div.className = "mensagem show";
+      div.textContent = historico;
+      historicoContainer.appendChild(div);
+
+      setTimeout(() => {
+        mensagemPrincipal.classList.remove('show');
+        setTimeout(() => exibirProximaMensagem(), 500);
+      }, tempoExibicao);
+    }
+
+    function setBackgroundColor(cor) {
+      const classesBase = 'text-white flex flex-col items-center justify-start min-h-screen p-6 transition-colors duration-500';
+      if (cor === 'VERMELHO') document.body.className = `bg-red-600 ${classesBase}`;
+      else if (cor === 'VERDE') document.body.className = `bg-green-600 ${classesBase}`;
+      else if (cor === 'AZUL') document.body.className = `bg-blue-600 ${classesBase}`;
+      else document.body.className = `bg-gray-900 ${classesBase}`;
+    }
+
+    let port;
+    let reader;
+
+    connectBtn.addEventListener('click', async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        mostrarMensagemFila("Arduino conectado!");
+
+        const decoder = new TextDecoderStream();
+        port.readable.pipeTo(decoder.writable);
+        reader = decoder.readable.getReader();
+
+        readLoop();
+      } catch (err) {
+        mostrarMensagemFila("Erro: " + err);
+      }
+    });
+
+    async function readLoop() {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) processSerial(value);
+        }
+      } catch (err) {
+        mostrarMensagemFila("Erro de leitura: " + err);
+      }
+    }
+    
+    // --- LÓGICA DAS EXPLOSÕES ---
+    window.requestAnimFrame = (function() {
+      return window.requestAnimationFrame ||
+        window.webkitRequestAnimationFrame ||
+        window.mozRequestAnimationFrame ||
+        function(callback) {
+          window.setTimeout(callback, 1000 / 60);
+        };
+    })();
+
+    const canvas = document.getElementById('explosion-canvas');
+    const ctx = canvas.getContext('2d');
+    let cw = window.innerWidth;
+    let ch = window.innerHeight;
+    canvas.width = cw;
+    canvas.height = ch;
+    
+    let particles = [];
+    
+    // Lista de navios para abater
+    const ships = Array.from(document.querySelectorAll('.ship'));
+    let shipsSunk = 0;
+
+
+    window.addEventListener('resize', () => {
+        cw = window.innerWidth;
+        ch = window.innerHeight;
+        canvas.width = cw;
+        canvas.height = ch;
+    });
+
+    function random(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function Particle(x, y) {
+      this.x = x;
+      this.y = y;
+      this.coordinates = [];
+      this.coordinateCount = 5;
+      while (this.coordinateCount--) {
+        this.coordinates.push([this.x, this.y]);
+      }
+      this.angle = random(0, Math.PI * 2);
+      this.speed = random(1, 10);
+      this.friction = 0.95;
+      this.gravity = 0.8; // Menos gravidade para parecer fumaça/água
+      this.hue = random(0, 50); // Tons de vermelho, laranja e amarelo
+      this.brightness = random(50, 80);
+      this.alpha = 1;
+      this.decay = random(0.015, 0.03);
+    }
+
+    Particle.prototype.update = function(index) {
+      this.coordinates.pop();
+      this.coordinates.unshift([this.x, this.y]);
+      this.speed *= this.friction;
+      this.x += Math.cos(this.angle) * this.speed;
+      this.y += Math.sin(this.angle) * this.speed + this.gravity;
+      this.alpha -= this.decay;
+
+      if (this.alpha <= this.decay) {
+        particles.splice(index, 1);
+      }
+    }
+
+    Particle.prototype.draw = function() {
+      ctx.beginPath();
+      ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+      ctx.lineTo(this.x, this.y);
+      ctx.strokeStyle = 'hsla(' + this.hue + ', 100%, ' + this.brightness + '%, ' + this.alpha + ')';
+      ctx.stroke();
+    }
+
+    function createParticles(x, y) {
+      // Aumente o número para uma explosão maior
+      let particleCount = 50;
+      while (particleCount--) {
+        particles.push(new Particle(x, y));
+      }
+    }
+
+    function animationLoop() {
+      requestAnimFrame(animationLoop);
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.globalCompositeOperation = 'lighter';
+
+      let i = particles.length;
+      while (i--) {
+        particles[i].draw();
+        particles[i].update(i);
+      }
+    }
+    
+    // Inicia o loop de animação das partículas
+    animationLoop();
+
+    function shakeScreen() {
+      document.body.classList.add('shake');
+      setTimeout(() => {
+        document.body.classList.remove('shake');
+      }, 500); // Duração deve ser a mesma da animação CSS
+    }
+
+    function resetShip(shipElement) {
+      // 1. O navio se torna invisível (a transição CSS vai cuidar do fade-out)
+      shipElement.classList.add('hidden');
+
+      // 2. Após a transição de fade-out (500ms), reinicia a animação
+      setTimeout(() => {
+        shipElement.style.animation = 'none';
+        void shipElement.offsetWidth; // Força um reflow do navegador
+        shipElement.style.animation = '';
+
+        // 3. Torna o navio visível novamente para o "respawn"
+        shipElement.classList.remove('hidden');
+      }, 500); // Deve corresponder à duração da transição no CSS
+    }
+
+
+    // --- FUNÇÃO `processSerial` MODIFICADA ---
+    function processSerial(data) {
+      bufferSerial += data;
+      let linhas = bufferSerial.split(/\r?\n/);
+      bufferSerial = linhas.pop();
+
+      linhas.forEach(line => {
+        if (line.trim() === "") return;
+
+        mostrarMensagemFila(line);
+
+        // *** NOVA LÓGICA DE ACERTO ***
+        // Verifique a mensagem exata que seu Arduino envia para um acerto.
+        if (line.includes('✅ Acertou a cor!')) {
+            // Usa o operador de módulo para ciclar entre os navios disponíveis
+            const shipToHit = ships[shipsSunk % ships.length];
+            
+            // Pega a posição atual do navio na tela
+            const rect = shipToHit.getBoundingClientRect();
+            const explosionX = rect.left + rect.width / 2;
+            const explosionY = rect.top + rect.height / 2;
+            
+            // Dispara a explosão na posição do navio
+            createParticles(explosionX, explosionY);
+
+            // Faz a tela tremer
+            shakeScreen();
+            
+            // Reinicia a posição do navio
+            resetShip(shipToHit);
+            
+            shipsSunk++;
+        }
+        
+        if (line.includes('Equipe 2 tentou a cor: VERMELHO')) setBackgroundColor('VERMELHO');
+        else if (line.includes('Equipe 2 tentou a cor: VERDE')) setBackgroundColor('VERDE');
+        else if (line.includes('Equipe 2 tentou a cor: AZUL')) setBackgroundColor('AZUL');
+      });
+    }
+  </script>
+</body>
+</html>
+
