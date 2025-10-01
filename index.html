@@ -175,7 +175,7 @@
     let historico = '';
     let filaMensagens = [];
     let exibindoMensagem = false;
-    const tempoExibicao = 3000;
+    const tempoExibicao = 1500;
 
     function mostrarMensagemFila(msg) {
       filaMensagens.push(msg.trim());
@@ -401,12 +401,13 @@
             shipsSunk++;
         }
         
-        if (line.includes('Equipe 2 tentou a cor: VERMELHO')) setBackgroundColor('VERMELHO');
-        else if (line.includes('Equipe 2 tentou a cor: VERDE')) setBackgroundColor('VERDE');
-        else if (line.includes('Equipe 2 tentou a cor: AZUL')) setBackgroundColor('AZUL');
+        if (line.includes('Equipe 1 tentou a cor: VERMELHO')) setBackgroundColor('VERMELHO');
+        else if (line.includes('Equipe 1 tentou a cor: VERDE')) setBackgroundColor('VERDE');
+        else if (line.includes('Equipe 1 tentou a cor: AZUL')) setBackgroundColor('AZUL');
       });
     }
   </script>
 </body>
 </html>
+
 
